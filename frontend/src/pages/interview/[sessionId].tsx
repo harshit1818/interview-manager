@@ -10,6 +10,7 @@ import VideoCall from '@/components/VideoCall';
 import CodeEditor from '@/components/CodeEditor';
 import TranscriptPanel from '@/components/TranscriptPanel';
 import Loading from '@/components/Loading';
+import IntegrityWarning from '@/components/IntegrityWarning';
 
 export default function InterviewPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function InterviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [currentWarning, setCurrentWarning] = useState<'MULTIPLE_FACES' | 'GAZE_AWAY' | 'TAB_SWITCH' | 'WINDOW_BLUR' | 'LARGE_PASTE' | null>(null);
 
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
@@ -28,6 +30,11 @@ export default function InterviewPage() {
     sessionId: sessionId as string,
     enabled: isInterviewActive,
   });
+
+  const handleIntegrityEvent = (eventType: string, metadata: any) => {
+    logEvent(eventType, metadata);
+    setCurrentWarning(eventType as any);
+  };
 
   useEffect(() => {
     if (sessionId) {
@@ -167,8 +174,12 @@ export default function InterviewPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main area */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Video Call */}
-            <VideoCall sessionId={sessionId as string} />
+            {/* Video Call with Analysis */}
+            <VideoCall
+              sessionId={sessionId as string}
+              onIntegrityEvent={handleIntegrityEvent}
+              enableAnalysis={true}
+            />
 
             {/* Current Question */}
             {currentQuestion && (
@@ -179,7 +190,7 @@ export default function InterviewPage() {
             )}
 
             {/* Code Editor */}
-            <CodeEditor onPaste={(length) => logEvent('LARGE_PASTE', { length })} />
+            <CodeEditor onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })} />
 
             {/* Answer Controls */}
             <div className="bg-white p-6 rounded-lg shadow">
@@ -261,6 +272,12 @@ export default function InterviewPage() {
             <TranscriptPanel transcript={transcript} />
           </div>
         </div>
+
+        {/* Integrity Warning Overlay */}
+        <IntegrityWarning
+          type={currentWarning}
+          onClose={() => setCurrentWarning(null)}
+        />
       </div>
     </div>
     </>
