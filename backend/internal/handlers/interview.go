@@ -141,11 +141,14 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 
 // EndInterview ends the session and generates report
 func (h *InterviewHandler) EndInterview(c *gin.Context) {
-	sessionID := c.PostForm("sessionId")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId required"})
+	var req struct {
+		SessionID string `json:"sessionId" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	sessionID := req.SessionID
 
 	session, err := h.sessionService.GetSession(sessionID)
 	if err != nil {

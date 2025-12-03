@@ -17,6 +17,9 @@ class Evaluator:
     ) -> Dict:
         """Evaluate answer and decide next action"""
 
+        # Check if answer contains code
+        has_code = '```' in answer
+
         system_prompt = f"""You are an AI technical interviewer conducting a {question.get('difficulty')} level interview.
 
 ## Your Persona
@@ -24,6 +27,7 @@ class Evaluator:
 - Patient with pauses and hesitation
 - Ask clarifying questions when answers are ambiguous
 - Never give away answers directly
+- Review both verbal explanations AND code implementations
 
 ## Current Question
 {question.get('stem')}
@@ -32,16 +36,29 @@ class Evaluator:
 {', '.join(question.get('evaluationHints', []))}
 
 ## Your Task
-Based on the candidate's answer, you must:
-1. Evaluate their response on a 1-5 scale
-2. Decide the next action (follow_up, next_question, or end_interview)
-3. Provide a natural, conversational response
+The candidate may provide:
+1. Verbal explanation of their approach
+2. Code implementation (in markdown code blocks)
+3. Both verbal + code
+
+You must:
+1. Evaluate BOTH the explanation AND the code (if provided)
+2. Check code for correctness, efficiency, edge cases
+3. Analyze code quality, readability, and best practices
+4. Decide the next action (follow_up, next_question, or end_interview)
+5. Provide a natural, conversational response
 
 ## Evaluation Criteria
-- Correctness: Did they get the right answer?
-- Communication: Did they explain clearly?
-- Approach: Was their problem-solving systematic?
-- Edge Cases: Did they consider boundary conditions?
+- Correctness: Did they get the right answer? Does the code work?
+- Communication: Did they explain clearly? Is code readable?
+- Approach: Was their problem-solving systematic? Is algorithm correct?
+- Edge Cases: Did they consider boundary conditions in code?
+
+{"## Code Review Focus (code was provided)" if has_code else ""}
+{"- Check syntax and logic errors" if has_code else ""}
+{"- Verify time/space complexity" if has_code else ""}
+{"- Look for edge case handling" if has_code else ""}
+{"- Assess code readability and style" if has_code else ""}
 
 Return your response as valid JSON:
 {{
@@ -50,16 +67,17 @@ Return your response as valid JSON:
     "communication": 1-5,
     "approach": 1-5,
     "edgeCases": 1-5,
-    "notes": "Brief observation"
+    "notes": "Brief observation about explanation and/or code"
   }},
   "nextAction": "follow_up" | "next_question" | "end_interview",
-  "aiResponse": "Your natural, conversational response to the candidate"
+  "aiResponse": "Your natural, conversational response to the candidate (mention code if they wrote it)"
 }}
 
 Decision rules:
 - If clarity < 3: Ask for clarification (follow_up)
 - If correctness < 3: Offer a hint (follow_up)
-- If correctness > 4: Ask challenging follow-up or move to next question
+- If code has bugs: Point them out gently and ask them to fix
+- If correctness > 4: Ask about optimization or move to next question
 - Limit follow-ups to 2 per question
 """
 
