@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
@@ -12,6 +13,10 @@ from services.report_generator import ReportGenerator
 
 # Load environment variables
 load_dotenv()
+
+# Warn if Anthropic key missing
+if not os.getenv("ANTHROPIC_API_KEY"):
+    logging.warning("ANTHROPIC_API_KEY not set. Set it in environment or llm-service/.env before running.")
 
 app = FastAPI(title="Interview LLM Service", version="1.0.0")
 
@@ -128,9 +133,9 @@ async def evaluate_answer(request: EvaluateRequest):
     """Evaluate candidate's answer and decide next action"""
     try:
         result = await evaluator.evaluate_and_decide(
-            question=request.question,
+            question=request.question.model_dump(),
             answer=request.answer,
-            history=request.history
+            history=[h.model_dump() for h in request.history]
         )
         return result
     except Exception as e:

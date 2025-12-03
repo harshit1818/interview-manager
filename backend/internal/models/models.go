@@ -8,11 +8,12 @@ type InterviewSession struct {
 	CandidateName    string                 `json:"candidateName"`
 	Topic            string                 `json:"topic"`
 	Difficulty       string                 `json:"difficulty"`
-	Duration         int                    `json:"duration"` // in minutes
-	Status           string                 `json:"status"`   // "waiting", "in_progress", "completed"
+	Duration         int                    `json:"duration"`
+	Status           string                 `json:"status"`
 	StartedAt        *time.Time             `json:"startedAt,omitempty"`
 	EndedAt          *time.Time             `json:"endedAt,omitempty"`
 	CurrentQuestion  int                    `json:"currentQuestion"`
+	FollowUpCounts   map[int]int            `json:"followUpCounts"`
 	Questions        []Question             `json:"questions"`
 	Transcript       []ConversationTurn     `json:"transcript"`
 	IntegrityEvents  []IntegrityEvent       `json:"integrityEvents"`
