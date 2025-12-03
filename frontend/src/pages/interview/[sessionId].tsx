@@ -28,6 +28,7 @@ export default function InterviewPage() {
   const [editorLanguage, setEditorLanguage] = useState<string>('javascript');
   const [currentCode, setCurrentCode] = useState<string>('');
   const [codeLanguage, setCodeLanguage] = useState<string>('javascript');
+  const [showFullCode, setShowFullCode] = useState<boolean>(false);
 
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
@@ -290,15 +291,30 @@ export default function InterviewPage() {
 
                   {currentCode && currentCode.trim().length > 0 && (
                     <div className="mt-3 pt-3 border-t border-green-300">
-                      <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        <p className="text-sm font-medium text-green-700">Code ({codeLanguage}) will be included</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-sm font-medium text-green-700">
+                            ✓ Full code in {codeLanguage} will be sent to AI ({currentCode.split('\n').length} lines)
+                          </p>
+                        </div>
+                        {currentCode.length > 200 && (
+                          <button
+                            onClick={() => setShowFullCode(!showFullCode)}
+                            className="text-xs text-green-600 hover:text-green-800 font-medium"
+                          >
+                            {showFullCode ? 'Show Less' : 'Show All'}
+                          </button>
+                        )}
                       </div>
-                      <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
-                        {currentCode.substring(0, 200)}{currentCode.length > 200 ? '...' : ''}
+                      <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
+                        {showFullCode || currentCode.length <= 200 ? currentCode : `${currentCode.substring(0, 200)}...`}
                       </pre>
+                      <p className="text-xs text-green-600 mt-2">
+                        💡 The complete code above will be analyzed by the AI interviewer
+                      </p>
                     </div>
                   )}
                 </div>

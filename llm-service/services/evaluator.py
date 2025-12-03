@@ -60,7 +60,9 @@ You must:
 {"- Look for edge case handling" if has_code else ""}
 {"- Assess code readability and style" if has_code else ""}
 
-Return your response as valid JSON:
+IMPORTANT: Return ONLY valid JSON with no extra text before or after. No explanations, no markdown, just pure JSON.
+
+Response format:
 {{
   "evaluation": {{
     "correctness": 1-5,
@@ -90,6 +92,7 @@ Decision rules:
         )
 
         try:
+            # Try direct JSON parse first
             result = json.loads(response)
             return {
                 "evaluation": result.get("evaluation"),
@@ -97,6 +100,23 @@ Decision rules:
                 "aiResponse": result.get("aiResponse", "Thank you for your answer.")
             }
         except json.JSONDecodeError:
+            # Try to extract JSON from response (Claude sometimes adds extra text)
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group())
+                    return {
+                        "evaluation": result.get("evaluation"),
+                        "nextAction": result.get("nextAction", "next_question"),
+                        "aiResponse": result.get("aiResponse", "Thank you for your answer.")
+                    }
+                except json.JSONDecodeError:
+                    pass
+
+            # Log the response for debugging
+            print(f"Failed to parse LLM response. Raw response: {response[:500]}")
+
             # Fallback response
             return {
                 "evaluation": {
