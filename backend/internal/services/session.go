@@ -34,6 +34,7 @@ func (s *SessionService) CreateSession(name, topic, difficulty string, duration 
 		Duration:        duration,
 		Status:          "waiting",
 		CurrentQuestion: 0,
+		FollowUpCounts:  make(map[int]int),
 		Questions:       []models.Question{},
 		Transcript:      []models.ConversationTurn{},
 		IntegrityEvents: []models.IntegrityEvent{},

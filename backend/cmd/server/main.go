@@ -6,35 +6,34 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "interview-manager/backend/docs"
 	"interview-manager/backend/internal/handlers"
 	"interview-manager/backend/internal/middleware"
 	"interview-manager/backend/internal/services"
 )
 
 func main() {
-	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
 
-	// Initialize services
 	sessionService := services.NewSessionService()
 	llmClient := services.NewLLMClient(os.Getenv("LLM_SERVICE_URL"))
 
-	// Setup router
 	router := gin.Default()
 
-	// Middleware
 	router.Use(middleware.CORS())
 	router.Use(middleware.Logger())
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
-	// API routes
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	api := router.Group("/api")
 	{
 		// Interview routes
