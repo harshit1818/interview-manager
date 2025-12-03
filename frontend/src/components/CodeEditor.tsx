@@ -87,67 +87,95 @@ export default function CodeEditor({ onPaste, initialLanguage = 'javascript', on
     };
   };
 
-  // Run code using Judge0 API (free online compiler)
+  // Run code using Piston API (completely free, no API key needed!)
   const handleRunCode = async () => {
     setIsRunning(true);
     setShowOutput(true);
     setOutput('Compiling and running...');
 
     try {
-      // Map language names to Judge0 language IDs
-      const languageMap: Record<string, number> = {
-        'javascript': 63,  // Node.js
-        'typescript': 74,  // TypeScript
-        'python': 71,      // Python 3
-        'java': 62,        // Java
-        'cpp': 54,         // C++ (GCC)
-        'c': 50,           // C (GCC)
-        'go': 60,          // Go
-        'rust': 73,        // Rust
-        'csharp': 51,      // C#
-        'ruby': 72,        // Ruby
-        'php': 68,         // PHP
-        'swift': 83,       // Swift
-        'kotlin': 78,      // Kotlin
-        'sql': 82,         // SQL
+      // Map our language names to Piston API language names
+      const languageMap: Record<string, { language: string; version: string }> = {
+        'javascript': { language: 'javascript', version: '18.15.0' },
+        'typescript': { language: 'typescript', version: '5.0.3' },
+        'python': { language: 'python', version: '3.10.0' },
+        'java': { language: 'java', version: '15.0.2' },
+        'cpp': { language: 'c++', version: '10.2.0' },
+        'c': { language: 'c', version: '10.2.0' },
+        'go': { language: 'go', version: '1.16.2' },
+        'rust': { language: 'rust', version: '1.68.2' },
+        'csharp': { language: 'csharp', version: '6.12.0' },
+        'ruby': { language: 'ruby', version: '3.0.1' },
+        'php': { language: 'php', version: '8.2.3' },
+        'swift': { language: 'swift', version: '5.3.3' },
+        'kotlin': { language: 'kotlin', version: '1.8.20' },
+        'sql': { language: 'sqlite3', version: '3.36.0' },
       };
 
-      const languageId = languageMap[language] || 63;
+      const pistonLang = languageMap[language] || { language: 'javascript', version: '18.15.0' };
 
-      // Submit code to Judge0 (free API)
-      const submitResponse = await fetch('https://judge0-ce.p.rapidapi.com/submissions?wait=true', {
+      // Submit code to Piston API (completely free!)
+      const response = await fetch('https://emkc.org/api/v2/piston/execute', {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
-          'X-RapidAPI-Key': 'demo', // Using demo key for prototype
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          language_id: languageId,
-          source_code: code,
-          stdin: '',
+          language: pistonLang.language,
+          version: pistonLang.version,
+          files: [
+            {
+              name: `main.${getFileExtension(language)}`,
+              content: code,
+            },
+          ],
         }),
       });
 
-      const result = await submitResponse.json();
+      const result = await response.json();
 
       // Display output
-      if (result.stdout) {
-        setOutput(`✅ Output:\n${result.stdout}`);
-      } else if (result.stderr) {
-        setOutput(`❌ Error:\n${result.stderr}`);
-      } else if (result.compile_output) {
-        setOutput(`⚠️ Compilation Error:\n${result.compile_output}`);
+      if (result.run) {
+        if (result.run.stdout) {
+          setOutput(`✅ Output:\n${result.run.stdout}`);
+        } else if (result.run.stderr) {
+          setOutput(`❌ Error:\n${result.run.stderr}`);
+        } else if (result.run.output) {
+          setOutput(`ℹ️ ${result.run.output}`);
+        } else {
+          setOutput('✅ Code executed successfully (no output)');
+        }
       } else if (result.message) {
-        setOutput(`ℹ️ ${result.message}`);
+        setOutput(`❌ ${result.message}`);
       } else {
-        setOutput('✅ Code executed successfully (no output)');
+        setOutput('✅ Code executed successfully');
       }
     } catch (error) {
-      setOutput(`❌ Failed to run code: ${error instanceof Error ? error.message : 'Unknown error'}\n\nNote: Using free API with limitations. For prototype only.`);
+      setOutput(`❌ Failed to run code: ${error instanceof Error ? error.message : 'Unknown error'}\n\nTip: Check your internet connection.`);
     } finally {
       setIsRunning(false);
     }
+  };
+
+  // Helper function to get file extension
+  const getFileExtension = (lang: string): string => {
+    const extensions: Record<string, string> = {
+      'javascript': 'js',
+      'typescript': 'ts',
+      'python': 'py',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c',
+      'go': 'go',
+      'rust': 'rs',
+      'csharp': 'cs',
+      'ruby': 'rb',
+      'php': 'php',
+      'swift': 'swift',
+      'kotlin': 'kt',
+      'sql': 'sql',
+    };
+    return extensions[lang] || 'txt';
   };
 
   return (
