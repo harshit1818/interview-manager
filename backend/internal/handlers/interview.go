@@ -71,14 +71,12 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		return
 	}
 
-	// Get session
 	session, err := h.sessionService.GetSession(req.SessionID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
 
-	// Log candidate's answer
 	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
 		Timestamp: time.Now(),
 		Speaker:   "candidate",
@@ -86,7 +84,6 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Type:      "answer",
 	})
 
-	// Send to LLM for evaluation and next action
 	llmResponse, err := h.llmClient.EvaluateAndDecideNext(
 		session.Questions[session.CurrentQuestion],
 		req.Transcript,
@@ -97,7 +94,21 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		return
 	}
 
-	// Log AI's response
+	const maxFollowUps = 2
+	qIdx := session.CurrentQuestion
+	if session.FollowUpCounts == nil {
+		session.FollowUpCounts = make(map[int]int)
+	}
+
+	if llmResponse.NextAction == "follow_up" {
+		if session.FollowUpCounts[qIdx] >= maxFollowUps {
+			llmResponse.NextAction = "next_question"
+			llmResponse.AIResponse = "Good effort on this question. Let's move on to the next one."
+		} else {
+			session.FollowUpCounts[qIdx]++
+		}
+	}
+
 	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
 		Timestamp:  time.Now(),
 		Speaker:    "ai",
@@ -106,10 +117,8 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Evaluation: llmResponse.Evaluation,
 	})
 
-	// Handle next action
 	var nextQuestion *models.Question
 	if llmResponse.NextAction == "next_question" {
-		// Get next question
 		nextQ, err := h.llmClient.GetNextQuestion(session.Topic, session.Difficulty, session.CurrentQuestion+1)
 		if err == nil {
 			nextQuestion = &nextQ

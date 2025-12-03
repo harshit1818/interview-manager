@@ -110,7 +110,9 @@ func (l *LLMClient) post(endpoint string, payload interface{}, response interfac
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("LLM service returned error: " + resp.Status)
+		var errBody map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		return fmt.Errorf("LLM service error %s: %v", resp.Status, errBody)
 	}
 
 	return json.NewDecoder(resp.Body).Decode(response)
