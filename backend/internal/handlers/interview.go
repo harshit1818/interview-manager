@@ -141,11 +141,14 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 
 // EndInterview ends the session and generates report
 func (h *InterviewHandler) EndInterview(c *gin.Context) {
-	sessionID := c.PostForm("sessionId")
-	if sessionID == "" {
+	var req struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.SessionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId required"})
 		return
 	}
+	sessionID := req.SessionID
 
 	session, err := h.sessionService.GetSession(sessionID)
 	if err != nil {
@@ -153,10 +156,9 @@ func (h *InterviewHandler) EndInterview(c *gin.Context) {
 		return
 	}
 
-	// Generate report
 	report, err := h.llmClient.GenerateReport(session)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report", "details": err.Error()})
 		return
 	}
 

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from services.claude_client import ClaudeClient
 
@@ -85,7 +85,7 @@ Transcript length: {len(session.get('transcript', []))} turns
             "integrityScore": integrity_score,
             "integrityIssues": len(integrity_events),
             "recommendation": analysis.get("recommendation", "maybe"),
-            "generatedAt": datetime.utcnow().isoformat()
+            "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
 
     def _calculate_scores(self, evaluations: list) -> Dict[str, float]:
