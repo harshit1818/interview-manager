@@ -7,7 +7,7 @@ class ClaudeClient:
 
     def __init__(self, api_key: str):
         self.client = Anthropic(api_key=api_key)
-        self.model = "claude-3-5-sonnet-20241022"
+        self.model = "claude-sonnet-4-20250514"  # Correct model version
 
     async def generate_text(
         self,
