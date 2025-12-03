@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
+import { useVideoAnalysis } from '@/hooks/useVideoAnalysis';
 
 interface VideoCallProps {
   sessionId: string;
+  onIntegrityEvent?: (eventType: string, metadata: any) => void;
+  enableAnalysis?: boolean;
 }
 
-export default function VideoCall({ sessionId }: VideoCallProps) {
+export default function VideoCall({
+  sessionId,
+  onIntegrityEvent,
+  enableAnalysis = true
+}: VideoCallProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
+  const [showAnalysisOverlay, setShowAnalysisOverlay] = useState(true);
 
   useEffect(() => {
     startVideo();
@@ -38,6 +46,20 @@ export default function VideoCall({ sessionId }: VideoCallProps) {
       stream.getTracks().forEach((track) => track.stop());
     }
   };
+
+  // Video analysis with MediaPipe
+  const { isReady, analysisResult } = useVideoAnalysis({
+    videoElement: videoRef.current,
+    enabled: enableAnalysis && isVideoEnabled,
+    onMultipleFaces: () => {
+      console.log('Multiple faces detected!');
+      onIntegrityEvent?.('MULTIPLE_FACES', { timestamp: Date.now() });
+    },
+    onGazeAway: (direction) => {
+      console.log('Gaze away detected:', direction);
+      onIntegrityEvent?.('GAZE_AWAY', { direction, timestamp: Date.now() });
+    },
+  });
 
   return (
     <div className="bg-white p-6 rounded-lg shadow">
@@ -85,10 +107,55 @@ export default function VideoCall({ sessionId }: VideoCallProps) {
         </div>
       </div>
 
-      {/* Recording indicator */}
-      <div className="mt-4 flex items-center gap-2">
-        <span className="inline-block w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-        <span className="text-sm text-gray-600">Recording in progress</span>
+      {/* Recording indicator and video analysis status */}
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+          <span className="text-sm text-gray-600">Recording in progress</span>
+        </div>
+
+        {/* Video Analysis Overlay */}
+        {enableAnalysis && isVideoEnabled && showAnalysisOverlay && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-2 ${isReady ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-xs font-medium text-blue-900">
+                  Video Analysis: {isReady ? 'Active' : 'Initializing...'}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowAnalysisOverlay(false)}
+                className="text-blue-400 hover:text-blue-600"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {isReady && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center">
+                  <span className="text-blue-700">Faces detected:</span>
+                  <span className={`ml-1 font-semibold ${analysisResult.faceCount === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                    {analysisResult.faceCount}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-blue-700">Looking at screen:</span>
+                  <span className={`ml-1 font-semibold ${!analysisResult.isLookingAway ? 'text-green-600' : 'text-amber-600'}`}>
+                    {!analysisResult.isLookingAway ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

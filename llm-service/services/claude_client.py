@@ -8,7 +8,7 @@ class ClaudeClient:
 
     def __init__(self, api_key: str):
         self.client = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-20250514"
+        self.model = "claude-sonnet-4-20250514"  # Correct model version
 
     async def _call_messages_create(self, **kwargs):
         """Run the blocking Anthropic call in a thread to avoid blocking event loop."""

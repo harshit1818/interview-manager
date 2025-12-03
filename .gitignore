@@ -17,7 +17,9 @@ go.work
 # Python
 llm-service/venv/
 llm-service/__pycache__/
+llm-service/**/__pycache__/
 llm-service/*.pyc
+llm-service/**/*.pyc
 llm-service/*.pyo
 llm-service/*.pyd
 llm-service/.Python
@@ -25,6 +27,8 @@ llm-service/pip-log.txt
 llm-service/pip-delete-this-directory.txt
 llm-service/.pytest_cache/
 llm-service/*.egg-info/
+*.pyc
+__pycache__/
 
 # Node.js / Frontend
 frontend/node_modules/
