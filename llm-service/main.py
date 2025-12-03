@@ -10,6 +10,7 @@ from services.claude_client import ClaudeClient
 from services.question_generator import QuestionGenerator
 from services.evaluator import Evaluator
 from services.report_generator import ReportGenerator
+from services.context_manager import context_registry, ContextManager
 
 # Load environment variables
 load_dotenv()
@@ -103,6 +104,24 @@ class Report(BaseModel):
     generatedAt: str
 
 
+class AddContextRequest(BaseModel):
+    sessionId: str
+    speaker: str
+    text: str
+    exchangeType: str = "message"
+    evaluation: Optional[Dict[str, Any]] = None
+
+
+class ContextStatsResponse(BaseModel):
+    session_id: str
+    recent_exchanges: int
+    compressed_summaries: int
+    key_points: int
+    evaluations: int
+    current_question: int
+    age_seconds: float
+
+
 # Routes
 @app.get("/")
 async def root():
@@ -112,6 +131,62 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.post("/api/context/add")
+async def add_to_context(request: AddContextRequest):
+    """Add an exchange to the session context."""
+    try:
+        ctx_manager = await context_registry.get_or_create(request.sessionId)
+        await ctx_manager.add_exchange(
+            speaker=request.speaker,
+            text=request.text,
+            evaluation=request.evaluation,
+            exchange_type=request.exchangeType
+        )
+        return {"success": True, "stats": ctx_manager.get_stats()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/context/{session_id}")
+async def get_context(session_id: str):
+    """Get the current context for LLM consumption."""
+    try:
+        ctx_manager = await context_registry.get_or_create(session_id)
+        return {
+            "context": ctx_manager.get_context_for_llm(),
+            "stats": ctx_manager.get_stats()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/context/{session_id}/advance")
+async def advance_question(session_id: str):
+    """Mark that interview moved to next question."""
+    try:
+        ctx_manager = await context_registry.get_or_create(session_id)
+        ctx_manager.advance_question()
+        return {"success": True, "current_question": ctx_manager.current_question_index}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/context/{session_id}")
+async def clear_context(session_id: str):
+    """Clear context for a completed session."""
+    try:
+        await context_registry.remove(session_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/context/stats/all")
+async def get_all_context_stats():
+    """Get stats for all active session contexts."""
+    return context_registry.get_all_stats()
 
 
 @app.post("/api/question/generate", response_model=Question)

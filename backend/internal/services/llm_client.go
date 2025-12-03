@@ -87,6 +87,93 @@ func (l *LLMClient) GenerateReport(session *models.InterviewSession) (models.Rep
 	return report, err
 }
 
+// AddToContext adds an exchange to the context manager
+func (l *LLMClient) AddToContext(sessionID, speaker, text, exchangeType string, evaluation *models.Evaluation) error {
+	payload := map[string]interface{}{
+		"sessionId":    sessionID,
+		"speaker":      speaker,
+		"text":         text,
+		"exchangeType": exchangeType,
+	}
+	if evaluation != nil {
+		payload["evaluation"] = evaluation
+	}
+
+	var response map[string]interface{}
+	return l.post("/api/context/add", payload, &response)
+}
+
+// GetContext retrieves the formatted context for LLM consumption
+func (l *LLMClient) GetContext(sessionID string) (string, error) {
+	var response struct {
+		Context string                 `json:"context"`
+		Stats   map[string]interface{} `json:"stats"`
+	}
+	
+	err := l.get(fmt.Sprintf("/api/context/%s", sessionID), &response)
+	if err != nil {
+		return "", err
+	}
+	return response.Context, nil
+}
+
+// AdvanceQuestion marks that interview moved to next question
+func (l *LLMClient) AdvanceQuestion(sessionID string) error {
+	var response map[string]interface{}
+	return l.post(fmt.Sprintf("/api/context/%s/advance", sessionID), nil, &response)
+}
+
+// ClearContext removes context for a completed session
+func (l *LLMClient) ClearContext(sessionID string) error {
+	return l.delete(fmt.Sprintf("/api/context/%s", sessionID))
+}
+
+// Helper method for GET requests
+func (l *LLMClient) get(endpoint string, response interface{}) error {
+	url := l.baseURL + endpoint
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := l.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect to LLM service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		return fmt.Errorf("LLM service error %s: %v", resp.Status, errBody)
+	}
+
+	return json.NewDecoder(resp.Body).Decode(response)
+}
+
+// Helper method for DELETE requests
+func (l *LLMClient) delete(endpoint string) error {
+	url := l.baseURL + endpoint
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := l.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect to LLM service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errBody)
+		return fmt.Errorf("LLM service error %s: %v", resp.Status, errBody)
+	}
+
+	return nil
+}
+
 // Helper method for POST requests
 func (l *LLMClient) post(endpoint string, payload interface{}, response interface{}) error {
 	jsonData, err := json.Marshal(payload)
