@@ -5,6 +5,7 @@ import { interviewAPI } from '@/lib/api';
 import { useSpeechRecognition, useTextToSpeech } from '@/hooks/useVoice';
 import { useIntegrityDetection } from '@/hooks/useIntegrityDetection';
 import { getDefaultLanguageForTopic } from '@/lib/languageMapper';
+import { needsCodeEditor } from '@/lib/questionTypeDetector';
 import type { Question, RespondResponse } from '@/types';
 
 import VideoCall from '@/components/VideoCall';
@@ -29,6 +30,7 @@ export default function InterviewPage() {
   const [currentCode, setCurrentCode] = useState<string>('');
   const [codeLanguage, setCodeLanguage] = useState<string>('javascript');
   const [showFullCode, setShowFullCode] = useState<boolean>(false);
+  const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
 
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
@@ -57,6 +59,12 @@ export default function InterviewPage() {
       setCurrentQuestion(status.currentQuestion);
       setIsInterviewActive(status.currentState === 'in_progress');
       setTimeRemaining(status.timeRemaining);
+
+      // Check if this question needs code editor
+      if (status.currentQuestion) {
+        const needsCode = needsCodeEditor(status.currentQuestion.stem);
+        setShowCodeEditor(needsCode);
+      }
 
       // Get session info to determine topic and set editor language
       // Note: We'll get topic from the session, for now use a default
@@ -108,6 +116,10 @@ export default function InterviewPage() {
       // Handle next action
       if (response.nextAction === 'next_question' && response.nextQuestion) {
         setCurrentQuestion(response.nextQuestion);
+
+        // Check if new question needs code editor
+        const needsCode = needsCodeEditor(response.nextQuestion.stem);
+        setShowCodeEditor(needsCode);
       } else if (response.nextAction === 'end_interview') {
         await endInterview();
       }
@@ -208,15 +220,17 @@ export default function InterviewPage() {
               </div>
             )}
 
-            {/* Code Editor */}
-            <CodeEditor
-              onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
-              initialLanguage={editorLanguage}
-              onCodeChange={(code, language) => {
-                setCurrentCode(code);
-                setCodeLanguage(language);
-              }}
-            />
+            {/* Code Editor - Only show for coding questions */}
+            {showCodeEditor && (
+              <CodeEditor
+                onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
+                initialLanguage={editorLanguage}
+                onCodeChange={(code, language) => {
+                  setCurrentCode(code);
+                  setCodeLanguage(language);
+                }}
+              />
+            )}
 
             {/* Answer Controls */}
             <div className="bg-white p-6 rounded-lg shadow">
