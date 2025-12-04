@@ -46,7 +46,7 @@ export interface Evaluation {
 
 export interface IntegrityEvent {
   timestamp: string;
-  type: 'TAB_SWITCH' | 'WINDOW_BLUR' | 'MULTIPLE_FACES' | 'GAZE_AWAY' | 'LARGE_PASTE';
+  type: 'TAB_SWITCH' | 'WINDOW_BLUR' | 'MULTIPLE_FACES' | 'GAZE_AWAY' | 'LARGE_PASTE' | 'PROLONGED_SILENCE' | 'SUDDEN_AUDIO_SPIKE' | 'POSSIBLE_BACKGROUND_SPEECH' | 'LONG_SILENCE_ENDED';
   severity: 'low' | 'medium' | 'high';
   metadata: Record<string, any>;
 }

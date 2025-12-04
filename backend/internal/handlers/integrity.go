@@ -67,11 +67,11 @@ func (h *IntegrityHandler) GetEvents(c *gin.Context) {
 
 func determineSeverity(eventType string) string {
 	switch eventType {
-	case "MULTIPLE_FACES":
+	case "MULTIPLE_FACES", "POSSIBLE_BACKGROUND_SPEECH":
 		return "high"
-	case "TAB_SWITCH", "WINDOW_BLUR":
+	case "TAB_SWITCH", "WINDOW_BLUR", "SUDDEN_AUDIO_SPIKE":
 		return "medium"
-	case "GAZE_AWAY", "LARGE_PASTE":
+	case "GAZE_AWAY", "LARGE_PASTE", "PROLONGED_SILENCE", "LONG_SILENCE_ENDED":
 		return "low"
 	default:
 		return "low"

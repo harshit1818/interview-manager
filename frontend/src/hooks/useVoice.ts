@@ -1,6 +1,186 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// Speech Recognition (STT)
+// Configuration for continuous listening
+const SILENCE_THRESHOLD_MS = 1500; // Consider utterance complete after 1.5s silence
+const MIN_UTTERANCE_LENGTH = 10; // Minimum characters for valid utterance
+
+interface UtteranceEvent {
+  text: string;
+  timestamp: number;
+  isFinal: boolean;
+}
+
+// Continuous Speech Recognition with Utterance Detection
+export const useContinuousSpeechRecognition = (
+  onUtteranceComplete?: (text: string) => void
+) => {
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentTranscript, setCurrentTranscript] = useState('');
+  const [finalizedText, setFinalizedText] = useState('');
+  const [recognition, setRecognition] = useState<any>(null);
+  
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSpeechTimeRef = useRef<number>(Date.now());
+  const accumulatedTextRef = useRef<string>('');
+  const isActiveRef = useRef<boolean>(false);
+
+  // Clear silence timer
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
+
+  // Handle utterance completion
+  const finalizeUtterance = useCallback(() => {
+    const text = accumulatedTextRef.current.trim();
+    if (text.length >= MIN_UTTERANCE_LENGTH) {
+      setFinalizedText(text);
+      setIsProcessing(true);
+      onUtteranceComplete?.(text);
+      setIsProcessing(false);
+    }
+    accumulatedTextRef.current = '';
+    setCurrentTranscript('');
+  }, [onUtteranceComplete]);
+
+  // Reset silence timer on speech
+  const resetSilenceTimer = useCallback(() => {
+    clearSilenceTimer();
+    lastSpeechTimeRef.current = Date.now();
+    
+    silenceTimerRef.current = setTimeout(() => {
+      if (isActiveRef.current && accumulatedTextRef.current.trim().length > 0) {
+        finalizeUtterance();
+      }
+    }, SILENCE_THRESHOLD_MS);
+  }, [clearSilenceTimer, finalizeUtterance]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+        recognitionInstance.maxAlternatives = 1;
+
+        recognitionInstance.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          
+          // Update accumulated text with final results
+          if (finalTranscript) {
+            accumulatedTextRef.current += finalTranscript;
+            setCurrentTranscript(accumulatedTextRef.current + interimTranscript);
+          } else {
+            setCurrentTranscript(accumulatedTextRef.current + interimTranscript);
+          }
+          
+          // Reset silence timer on any speech activity
+          resetSilenceTimer();
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          // Auto-restart on recoverable errors
+          if (event.error === 'no-speech' && isActiveRef.current) {
+            try {
+              recognitionInstance.start();
+            } catch (e) {
+              // Already started
+            }
+          } else if (event.error !== 'aborted') {
+            setIsListening(false);
+            isActiveRef.current = false;
+          }
+        };
+
+        recognitionInstance.onend = () => {
+          // Auto-restart if still supposed to be listening
+          if (isActiveRef.current) {
+            try {
+              recognitionInstance.start();
+            } catch (e) {
+              // Already started or error
+            }
+          } else {
+            setIsListening(false);
+          }
+        };
+
+        setRecognition(recognitionInstance);
+      }
+    }
+
+    return () => {
+      clearSilenceTimer();
+    };
+  }, [resetSilenceTimer, clearSilenceTimer]);
+
+  const startContinuousListening = useCallback(() => {
+    if (recognition && !isActiveRef.current) {
+      accumulatedTextRef.current = '';
+      setCurrentTranscript('');
+      setFinalizedText('');
+      isActiveRef.current = true;
+      try {
+        recognition.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error('Failed to start recognition:', e);
+      }
+    }
+  }, [recognition]);
+
+  const stopContinuousListening = useCallback(() => {
+    isActiveRef.current = false;
+    clearSilenceTimer();
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        // Already stopped
+      }
+      setIsListening(false);
+    }
+    // Finalize any remaining text
+    if (accumulatedTextRef.current.trim().length >= MIN_UTTERANCE_LENGTH) {
+      finalizeUtterance();
+    }
+  }, [recognition, clearSilenceTimer, finalizeUtterance]);
+
+  const forceFinalize = useCallback(() => {
+    clearSilenceTimer();
+    finalizeUtterance();
+  }, [clearSilenceTimer, finalizeUtterance]);
+
+  return {
+    isListening,
+    isProcessing,
+    currentTranscript,
+    finalizedText,
+    startContinuousListening,
+    stopContinuousListening,
+    forceFinalize,
+    isSupported: !!recognition,
+  };
+};
+
+// Original Speech Recognition (STT) - kept for backward compatibility
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
