@@ -32,6 +32,7 @@ export default function InterviewPage() {
   const [showFullCode, setShowFullCode] = useState<boolean>(false);
   const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
 
+  // Use regular speech recognition (manual controls)
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
   const { logEvent } = useIntegrityDetection({
@@ -43,6 +44,8 @@ export default function InterviewPage() {
     logEvent(eventType, metadata);
     setCurrentWarning(eventType as any);
   };
+
+  // Regular manual submission (removed auto-submit)
 
   useEffect(() => {
     if (sessionId) {
@@ -286,14 +289,16 @@ export default function InterviewPage() {
 
               {isListening && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center">
-                    <div className="flex space-x-1 mr-3">
-                      <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <div className="flex space-x-1 mr-3">
+                        <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                      </div>
+                      <p className="text-sm text-blue-700 font-medium">Listening...</p>
                     </div>
-                    <p className="text-sm text-blue-700 font-medium">Listening...</p>
                   </div>
                 </div>
               )}

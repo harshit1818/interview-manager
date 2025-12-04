@@ -25,13 +25,13 @@ export const useContinuousSpeechRecognition = (
   const accumulatedTextRef = useRef<string>('');
   const isActiveRef = useRef<boolean>(false);
 
-  // Clear silence timer
-  const clearSilenceTimer = useCallback(() => {
+  // Clear silence timer - using ref, no dependencies needed
+  const clearSilenceTimer = () => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
-  }, []);
+  };
 
   // Handle utterance completion
   const finalizeUtterance = useCallback(() => {
@@ -46,17 +46,25 @@ export const useContinuousSpeechRecognition = (
     setCurrentTranscript('');
   }, [onUtteranceComplete]);
 
-  // Reset silence timer on speech
-  const resetSilenceTimer = useCallback(() => {
+  // Reset silence timer on speech - using refs, minimal dependencies
+  const resetSilenceTimer = () => {
     clearSilenceTimer();
     lastSpeechTimeRef.current = Date.now();
-    
+
     silenceTimerRef.current = setTimeout(() => {
       if (isActiveRef.current && accumulatedTextRef.current.trim().length > 0) {
-        finalizeUtterance();
+        const text = accumulatedTextRef.current.trim();
+        if (text.length >= MIN_UTTERANCE_LENGTH) {
+          setFinalizedText(text);
+          setIsProcessing(true);
+          onUtteranceComplete?.(text);
+          setIsProcessing(false);
+        }
+        accumulatedTextRef.current = '';
+        setCurrentTranscript('');
       }
     }, SILENCE_THRESHOLD_MS);
-  }, [clearSilenceTimer, finalizeUtterance]);
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -127,9 +135,11 @@ export const useContinuousSpeechRecognition = (
     }
 
     return () => {
-      clearSilenceTimer();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
     };
-  }, [resetSilenceTimer, clearSilenceTimer]);
+  }, []); // Empty deps - only run once on mount
 
   const startContinuousListening = useCallback(() => {
     if (recognition && !isActiveRef.current) {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -33,33 +34,51 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	// Create session
 	session := h.sessionService.CreateSession(req.CandidateName, req.Topic, req.Difficulty, req.Duration)
 
-	// Get first question from LLM service
-	firstQuestion, err := h.llmClient.GetFirstQuestion(session.Topic, session.Difficulty)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate question"})
-		return
-	}
-
-	// Update session with first question
-	session.Questions = append(session.Questions, firstQuestion)
 	now := time.Now()
 	session.StartedAt = &now
 	session.Status = "in_progress"
 
-	// Save session
-	h.sessionService.UpdateSession(session)
+	// AI Introduction and greeting
+	aiGreeting := fmt.Sprintf("Hello %s! Welcome to your %s interview for a %s level position. I'm your AI interviewer today. This interview will last approximately %d minutes. Let's start by getting to know you better. Please introduce yourself and tell me a bit about your background and experience.",
+		req.CandidateName, req.Topic, req.Difficulty, req.Duration)
 
-	// Log AI's first question
+	// Log AI's greeting
 	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
 		Timestamp: time.Now(),
 		Speaker:   "ai",
-		Text:      firstQuestion.Stem,
+		Text:      aiGreeting,
+		Type:      "greeting",
+	})
+
+	// Create introduction question
+	introQuestion := models.Question{
+		ID:              "intro_001",
+		Stem:            "Please introduce yourself and tell me about your background, experience, and what interests you about this role.",
+		Difficulty:      "introduction",
+		FollowUps:       []string{"What motivated you to apply for this position?", "Tell me about a recent project you're proud of."},
+		EvaluationHints: []string{"Clear communication", "Relevant experience", "Enthusiasm"},
+		RedFlags:        []string{"Unclear communication", "Lack of preparation"},
+		Asked:           true,
+		AskedAt:         &now,
+	}
+
+	session.Questions = append(session.Questions, introQuestion)
+
+	// Save session
+	h.sessionService.UpdateSession(session)
+
+	// Log introduction question
+	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
+		Timestamp: time.Now(),
+		Speaker:   "ai",
+		Text:      introQuestion.Stem,
 		Type:      "question",
 	})
 
 	c.JSON(http.StatusOK, models.StartInterviewResponse{
 		SessionID:     session.ID,
-		FirstQuestion: firstQuestion,
+		FirstQuestion: introQuestion,
+		Greeting:      aiGreeting,
 	})
 }
 
