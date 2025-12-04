@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useSpeechRecognition, useTextToSpeech } from '@/hooks/useVoice';
 
@@ -6,6 +6,11 @@ export default function TestVoicePage() {
   const { isListening, transcript, startListening, stopListening, resetTranscript, isSupported: sttSupported } = useSpeechRecognition();
   const { speak, stop, isSpeaking, isSupported: ttsSupported } = useTextToSpeech();
   const [testText, setTestText] = useState('Hello! This is a test of the text to speech system.');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <>
@@ -17,19 +22,23 @@ export default function TestVoicePage() {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-800 mb-8">Voice Integration Test Page</h1>
 
-          {/* Browser Support Check */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Browser Support</h2>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <div className={`w-4 h-4 rounded-full mr-2 ${sttSupported ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span>Speech Recognition (STT): {sttSupported ? '✓ Supported' : '✗ Not Supported'}</span>
-              </div>
-              <div className="flex items-center">
-                <div className={`w-4 h-4 rounded-full mr-2 ${ttsSupported ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span>Text-to-Speech (TTS): {ttsSupported ? '✓ Supported' : '✗ Not Supported'}</span>
-              </div>
-            </div>
+          {!mounted ? (
+            <div className="text-center py-8">Loading...</div>
+          ) : (
+            <>
+              {/* Browser Support Check */}
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4">Browser Support</h2>
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <div className={`w-4 h-4 rounded-full mr-2 ${sttSupported ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span>Speech Recognition (STT): {sttSupported ? '✓ Supported' : '✗ Not Supported'}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className={`w-4 h-4 rounded-full mr-2 ${ttsSupported ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span>Text-to-Speech (TTS): {ttsSupported ? '✓ Supported' : '✗ Not Supported'}</span>
+                  </div>
+                </div>
             {!sttSupported && (
               <p className="mt-4 text-sm text-amber-600">
                 Note: Speech Recognition works best in Chrome. Try using Chrome if it's not working.
@@ -152,6 +161,8 @@ export default function TestVoicePage() {
               <li>Works best in Chrome browser</li>
             </ol>
           </div>
+          </>
+          )}
         </div>
       </div>
     </>
