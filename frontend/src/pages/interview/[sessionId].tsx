@@ -5,6 +5,7 @@ import { interviewAPI } from '@/lib/api';
 import { useSpeechRecognition, useTextToSpeech } from '@/hooks/useVoice';
 import { useIntegrityDetection } from '@/hooks/useIntegrityDetection';
 import { getDefaultLanguageForTopic } from '@/lib/languageMapper';
+import { needsCodeEditor } from '@/lib/questionTypeDetector';
 import type { Question, RespondResponse } from '@/types';
 
 import VideoCall from '@/components/VideoCall';
@@ -29,7 +30,9 @@ export default function InterviewPage() {
   const [currentCode, setCurrentCode] = useState<string>('');
   const [codeLanguage, setCodeLanguage] = useState<string>('javascript');
   const [showFullCode, setShowFullCode] = useState<boolean>(false);
+  const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
 
+  // Use regular speech recognition (manual controls)
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
   const { logEvent } = useIntegrityDetection({
@@ -41,6 +44,8 @@ export default function InterviewPage() {
     logEvent(eventType, metadata);
     setCurrentWarning(eventType as any);
   };
+
+  // Regular manual submission (removed auto-submit)
 
   useEffect(() => {
     if (sessionId) {
@@ -57,6 +62,12 @@ export default function InterviewPage() {
       setCurrentQuestion(status.currentQuestion);
       setIsInterviewActive(status.currentState === 'in_progress');
       setTimeRemaining(status.timeRemaining);
+
+      // Check if this question needs code editor
+      if (status.currentQuestion) {
+        const needsCode = needsCodeEditor(status.currentQuestion.stem);
+        setShowCodeEditor(needsCode);
+      }
 
       // Get session info to determine topic and set editor language
       // Note: We'll get topic from the session, for now use a default
@@ -108,6 +119,10 @@ export default function InterviewPage() {
       // Handle next action
       if (response.nextAction === 'next_question' && response.nextQuestion) {
         setCurrentQuestion(response.nextQuestion);
+
+        // Check if new question needs code editor
+        const needsCode = needsCodeEditor(response.nextQuestion.stem);
+        setShowCodeEditor(needsCode);
       } else if (response.nextAction === 'end_interview') {
         await endInterview();
       }
@@ -208,15 +223,17 @@ export default function InterviewPage() {
               </div>
             )}
 
-            {/* Code Editor */}
-            <CodeEditor
-              onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
-              initialLanguage={editorLanguage}
-              onCodeChange={(code, language) => {
-                setCurrentCode(code);
-                setCodeLanguage(language);
-              }}
-            />
+            {/* Code Editor - Only show for coding questions */}
+            {showCodeEditor && (
+              <CodeEditor
+                onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
+                initialLanguage={editorLanguage}
+                onCodeChange={(code, language) => {
+                  setCurrentCode(code);
+                  setCodeLanguage(language);
+                }}
+              />
+            )}
 
             {/* Answer Controls */}
             <div className="bg-white p-6 rounded-lg shadow">
@@ -272,14 +289,16 @@ export default function InterviewPage() {
 
               {isListening && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center">
-                    <div className="flex space-x-1 mr-3">
-                      <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <div className="flex space-x-1 mr-3">
+                        <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                      </div>
+                      <p className="text-sm text-blue-700 font-medium">Listening...</p>
                     </div>
-                    <p className="text-sm text-blue-700 font-medium">Listening...</p>
                   </div>
                 </div>
               )}
