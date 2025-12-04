@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { interviewAPI } from '@/lib/api';
 import { useSpeechRecognition, useTextToSpeech } from '@/hooks/useVoice';
 import { useIntegrityDetection } from '@/hooks/useIntegrityDetection';
+import { getDefaultLanguageForTopic } from '@/lib/languageMapper';
 import type { Question, RespondResponse } from '@/types';
 
 import VideoCall from '@/components/VideoCall';
@@ -23,6 +24,11 @@ export default function InterviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [currentWarning, setCurrentWarning] = useState<'MULTIPLE_FACES' | 'GAZE_AWAY' | 'TAB_SWITCH' | 'WINDOW_BLUR' | 'LARGE_PASTE' | null>(null);
+  const [interviewTopic, setInterviewTopic] = useState<string>('DSA');
+  const [editorLanguage, setEditorLanguage] = useState<string>('javascript');
+  const [currentCode, setCurrentCode] = useState<string>('');
+  const [codeLanguage, setCodeLanguage] = useState<string>('javascript');
+  const [showFullCode, setShowFullCode] = useState<boolean>(false);
 
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
@@ -52,6 +58,13 @@ export default function InterviewPage() {
       setIsInterviewActive(status.currentState === 'in_progress');
       setTimeRemaining(status.timeRemaining);
 
+      // Get session info to determine topic and set editor language
+      // Note: We'll get topic from the session, for now use a default
+      // In production, backend should return topic in status
+      const topic = 'DSA'; // TODO: Get from session/status
+      setInterviewTopic(topic);
+      setEditorLanguage(getDefaultLanguageForTopic(topic));
+
       // Speak the current question
       if (status.currentQuestion) {
         speak(status.currentQuestion.stem);
@@ -70,9 +83,15 @@ export default function InterviewPage() {
     stopListening();
 
     try {
+      // Combine voice transcript with code if available
+      let fullAnswer = spokenText;
+      if (currentCode && currentCode.trim().length > 0) {
+        fullAnswer += `\n\n[Code written in ${codeLanguage}]:\n\`\`\`${codeLanguage}\n${currentCode}\n\`\`\``;
+      }
+
       const response: RespondResponse = await interviewAPI.respond({
         sessionId: sessionId as string,
-        transcript: spokenText,
+        transcript: fullAnswer,
         timestamp: Date.now(),
       });
 
@@ -190,7 +209,14 @@ export default function InterviewPage() {
             )}
 
             {/* Code Editor */}
-            <CodeEditor onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })} />
+            <CodeEditor
+              onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
+              initialLanguage={editorLanguage}
+              onCodeChange={(code, language) => {
+                setCurrentCode(code);
+                setCodeLanguage(language);
+              }}
+            />
 
             {/* Answer Controls */}
             <div className="bg-white p-6 rounded-lg shadow">
@@ -262,6 +288,35 @@ export default function InterviewPage() {
                 <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-sm font-medium text-green-700 mb-2">Your answer:</p>
                   <p className="text-gray-800 leading-relaxed">{spokenText}</p>
+
+                  {currentCode && currentCode.trim().length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-green-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-sm font-medium text-green-700">
+                            ✓ Full code in {codeLanguage} will be sent to AI ({currentCode.split('\n').length} lines)
+                          </p>
+                        </div>
+                        {currentCode.length > 200 && (
+                          <button
+                            onClick={() => setShowFullCode(!showFullCode)}
+                            className="text-xs text-green-600 hover:text-green-800 font-medium"
+                          >
+                            {showFullCode ? 'Show Less' : 'Show All'}
+                          </button>
+                        )}
+                      </div>
+                      <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
+                        {showFullCode || currentCode.length <= 200 ? currentCode : `${currentCode.substring(0, 200)}...`}
+                      </pre>
+                      <p className="text-xs text-green-600 mt-2">
+                        💡 The complete code above will be analyzed by the AI interviewer
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

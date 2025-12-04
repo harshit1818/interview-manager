@@ -57,9 +57,6 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 		Type:      "question",
 	})
 
-	// Add to context manager
-	h.llmClient.AddToContext(session.ID, "ai", firstQuestion.Stem, "question", nil)
-
 	c.JSON(http.StatusOK, models.StartInterviewResponse{
 		SessionID:     session.ID,
 		FirstQuestion: firstQuestion,
@@ -86,9 +83,6 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Text:      req.Transcript,
 		Type:      "answer",
 	})
-
-	// Add candidate response to context manager
-	h.llmClient.AddToContext(session.ID, "candidate", req.Transcript, "answer", nil)
 
 	llmResponse, err := h.llmClient.EvaluateAndDecideNext(
 		session.Questions[session.CurrentQuestion],
@@ -123,14 +117,8 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Evaluation: llmResponse.Evaluation,
 	})
 
-	// Add AI response to context manager with evaluation
-	h.llmClient.AddToContext(session.ID, "ai", llmResponse.AIResponse, llmResponse.NextAction, llmResponse.Evaluation)
-
 	var nextQuestion *models.Question
 	if llmResponse.NextAction == "next_question" {
-		// Advance context question counter
-		h.llmClient.AdvanceQuestion(session.ID)
-		
 		nextQ, err := h.llmClient.GetNextQuestion(session.Topic, session.Difficulty, session.CurrentQuestion+1)
 		if err == nil {
 			nextQuestion = &nextQ
@@ -154,10 +142,10 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 // EndInterview ends the session and generates report
 func (h *InterviewHandler) EndInterview(c *gin.Context) {
 	var req struct {
-		SessionID string `json:"sessionId"`
+		SessionID string `json:"sessionId" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.SessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId required"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	sessionID := req.SessionID
@@ -168,9 +156,10 @@ func (h *InterviewHandler) EndInterview(c *gin.Context) {
 		return
 	}
 
+	// Generate report
 	report, err := h.llmClient.GenerateReport(session)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report"})
 		return
 	}
 
@@ -180,9 +169,6 @@ func (h *InterviewHandler) EndInterview(c *gin.Context) {
 	session.Status = "completed"
 	session.FinalReport = &report
 	h.sessionService.UpdateSession(session)
-
-	// Clear context manager for this session
-	h.llmClient.ClearContext(sessionID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"report":     report,
