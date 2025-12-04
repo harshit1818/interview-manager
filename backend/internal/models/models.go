@@ -19,6 +19,18 @@ type InterviewSession struct {
 	IntegrityEvents  []IntegrityEvent       `json:"integrityEvents"`
 	FinalReport      *Report                `json:"finalReport,omitempty"`
 	Metadata         map[string]interface{} `json:"metadata"`
+	JobDescription   *JobDescriptionInfo    `json:"jobDescription,omitempty"`
+}
+
+// JobDescriptionInfo stores extracted JD information
+type JobDescriptionInfo struct {
+	Title           string   `json:"title"`
+	Domain          string   `json:"domain"`
+	ExperienceLevel string   `json:"experienceLevel"`
+	KeyTechnologies []string `json:"keyTechnologies"`
+	RequiredSkills  []string `json:"requiredSkills"`
+	Responsibilities []string `json:"responsibilities"`
+	InterviewContext string   `json:"interviewContext"`
 }
 
 // Question represents an interview question
@@ -80,10 +92,11 @@ type Report struct {
 // Request/Response types
 
 type StartInterviewRequest struct {
-	CandidateName string `json:"candidateName" binding:"required"`
-	Topic         string `json:"topic" binding:"required"`
-	Difficulty    string `json:"difficulty" binding:"required"`
-	Duration      int    `json:"duration" binding:"required"`
+	CandidateName   string `json:"candidateName" binding:"required"`
+	Topic           string `json:"topic" binding:"required"`
+	Difficulty      string `json:"difficulty" binding:"required"`
+	Duration        int    `json:"duration" binding:"required"`
+	JobDescriptionID string `json:"jobDescriptionId,omitempty"` // Optional: pre-uploaded JD session ID
 }
 
 type StartInterviewResponse struct {
