@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -56,23 +57,47 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	session.StartedAt = &now
 	session.Status = "in_progress"
 
-	// Save session
-	h.sessionService.UpdateSession(session)
+	// AI Introduction and greeting
+	aiGreeting := fmt.Sprintf("Hello %s! Welcome to your %s interview for a %s level position. I'm your AI interviewer today. This interview will last approximately %d minutes. Let's start by getting to know you better. Please introduce yourself and tell me a bit about your background and experience.",
+		req.CandidateName, req.Topic, req.Difficulty, req.Duration)
 
-	// Log AI's first question
+	// Log AI's greeting
 	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
 		Timestamp: time.Now(),
 		Speaker:   "ai",
-		Text:      firstQuestion.Stem,
+		Text:      aiGreeting,
+		Type:      "greeting",
+	})
+
+	// Create introduction question
+	introQuestion := models.Question{
+		ID:              "intro_001",
+		Stem:            "Please introduce yourself and tell me about your background, experience, and what interests you about this role.",
+		Difficulty:      "introduction",
+		FollowUps:       []string{"What motivated you to apply for this position?", "Tell me about a recent project you're proud of."},
+		EvaluationHints: []string{"Clear communication", "Relevant experience", "Enthusiasm"},
+		RedFlags:        []string{"Unclear communication", "Lack of preparation"},
+		Asked:           true,
+		AskedAt:         &now,
+	}
+
+	session.Questions = append(session.Questions, introQuestion)
+
+	// Save session
+	h.sessionService.UpdateSession(session)
+
+	// Log introduction question
+	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
+		Timestamp: time.Now(),
+		Speaker:   "ai",
+		Text:      introQuestion.Stem,
 		Type:      "question",
 	})
 
-	// Add to context manager
-	h.llmClient.AddToContext(session.ID, "ai", firstQuestion.Stem, "question", nil)
-
 	c.JSON(http.StatusOK, models.StartInterviewResponse{
 		SessionID:     session.ID,
-		FirstQuestion: firstQuestion,
+		FirstQuestion: introQuestion,
+		Greeting:      aiGreeting,
 	})
 }
 
@@ -96,9 +121,6 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Text:      req.Transcript,
 		Type:      "answer",
 	})
-
-	// Add candidate response to context manager
-	h.llmClient.AddToContext(session.ID, "candidate", req.Transcript, "answer", nil)
 
 	llmResponse, err := h.llmClient.EvaluateAndDecideNext(
 		session.Questions[session.CurrentQuestion],
@@ -133,9 +155,6 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		Evaluation: llmResponse.Evaluation,
 	})
 
-	// Add AI response to context manager with evaluation
-	h.llmClient.AddToContext(session.ID, "ai", llmResponse.AIResponse, llmResponse.NextAction, llmResponse.Evaluation)
-
 	var nextQuestion *models.Question
 	if llmResponse.NextAction == "next_question" {
 		// Advance context question counter
@@ -164,10 +183,10 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 // EndInterview ends the session and generates report
 func (h *InterviewHandler) EndInterview(c *gin.Context) {
 	var req struct {
-		SessionID string `json:"sessionId"`
+		SessionID string `json:"sessionId" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.SessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId required"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	sessionID := req.SessionID
@@ -178,9 +197,10 @@ func (h *InterviewHandler) EndInterview(c *gin.Context) {
 		return
 	}
 
+	// Generate report
 	report, err := h.llmClient.GenerateReport(session)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report"})
 		return
 	}
 
@@ -190,9 +210,6 @@ func (h *InterviewHandler) EndInterview(c *gin.Context) {
 	session.Status = "completed"
 	session.FinalReport = &report
 	h.sessionService.UpdateSession(session)
-
-	// Clear context manager for this session
-	h.llmClient.ClearContext(sessionID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"report":     report,

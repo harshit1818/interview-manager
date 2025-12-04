@@ -4,6 +4,8 @@ import Head from 'next/head';
 import { interviewAPI } from '@/lib/api';
 import { useSpeechRecognition, useTextToSpeech } from '@/hooks/useVoice';
 import { useIntegrityDetection } from '@/hooks/useIntegrityDetection';
+import { getDefaultLanguageForTopic } from '@/lib/languageMapper';
+import { needsCodeEditor } from '@/lib/questionTypeDetector';
 import type { Question, RespondResponse } from '@/types';
 
 import VideoCall from '@/components/VideoCall';
@@ -23,7 +25,14 @@ export default function InterviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [currentWarning, setCurrentWarning] = useState<'MULTIPLE_FACES' | 'GAZE_AWAY' | 'TAB_SWITCH' | 'WINDOW_BLUR' | 'LARGE_PASTE' | null>(null);
+  const [interviewTopic, setInterviewTopic] = useState<string>('DSA');
+  const [editorLanguage, setEditorLanguage] = useState<string>('javascript');
+  const [currentCode, setCurrentCode] = useState<string>('');
+  const [codeLanguage, setCodeLanguage] = useState<string>('javascript');
+  const [showFullCode, setShowFullCode] = useState<boolean>(false);
+  const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
 
+  // Use regular speech recognition (manual controls)
   const { isListening, transcript: spokenText, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const { speak, isSpeaking } = useTextToSpeech();
   const { logEvent } = useIntegrityDetection({
@@ -35,6 +44,8 @@ export default function InterviewPage() {
     logEvent(eventType, metadata);
     setCurrentWarning(eventType as any);
   };
+
+  // Regular manual submission (removed auto-submit)
 
   useEffect(() => {
     if (sessionId) {
@@ -51,6 +62,19 @@ export default function InterviewPage() {
       setCurrentQuestion(status.currentQuestion);
       setIsInterviewActive(status.currentState === 'in_progress');
       setTimeRemaining(status.timeRemaining);
+
+      // Check if this question needs code editor
+      if (status.currentQuestion) {
+        const needsCode = needsCodeEditor(status.currentQuestion.stem);
+        setShowCodeEditor(needsCode);
+      }
+
+      // Get session info to determine topic and set editor language
+      // Note: We'll get topic from the session, for now use a default
+      // In production, backend should return topic in status
+      const topic = 'DSA'; // TODO: Get from session/status
+      setInterviewTopic(topic);
+      setEditorLanguage(getDefaultLanguageForTopic(topic));
 
       // Speak the current question
       if (status.currentQuestion) {
@@ -70,9 +94,15 @@ export default function InterviewPage() {
     stopListening();
 
     try {
+      // Combine voice transcript with code if available
+      let fullAnswer = spokenText;
+      if (currentCode && currentCode.trim().length > 0) {
+        fullAnswer += `\n\n[Code written in ${codeLanguage}]:\n\`\`\`${codeLanguage}\n${currentCode}\n\`\`\``;
+      }
+
       const response: RespondResponse = await interviewAPI.respond({
         sessionId: sessionId as string,
-        transcript: spokenText,
+        transcript: fullAnswer,
         timestamp: Date.now(),
       });
 
@@ -89,6 +119,10 @@ export default function InterviewPage() {
       // Handle next action
       if (response.nextAction === 'next_question' && response.nextQuestion) {
         setCurrentQuestion(response.nextQuestion);
+
+        // Check if new question needs code editor
+        const needsCode = needsCodeEditor(response.nextQuestion.stem);
+        setShowCodeEditor(needsCode);
       } else if (response.nextAction === 'end_interview') {
         await endInterview();
       }
@@ -189,8 +223,17 @@ export default function InterviewPage() {
               </div>
             )}
 
-            {/* Code Editor */}
-            <CodeEditor onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })} />
+            {/* Code Editor - Only show for coding questions */}
+            {showCodeEditor && (
+              <CodeEditor
+                onPaste={(length) => handleIntegrityEvent('LARGE_PASTE', { length })}
+                initialLanguage={editorLanguage}
+                onCodeChange={(code, language) => {
+                  setCurrentCode(code);
+                  setCodeLanguage(language);
+                }}
+              />
+            )}
 
             {/* Answer Controls */}
             <div className="bg-white p-6 rounded-lg shadow">
@@ -246,14 +289,16 @@ export default function InterviewPage() {
 
               {isListening && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center">
-                    <div className="flex space-x-1 mr-3">
-                      <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                      <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <div className="flex space-x-1 mr-3">
+                        <div className="w-2 h-4 bg-blue-500 rounded animate-pulse"></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-8 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        <div className="w-2 h-6 bg-blue-500 rounded animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                      </div>
+                      <p className="text-sm text-blue-700 font-medium">Listening...</p>
                     </div>
-                    <p className="text-sm text-blue-700 font-medium">Listening...</p>
                   </div>
                 </div>
               )}
@@ -262,6 +307,35 @@ export default function InterviewPage() {
                 <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-sm font-medium text-green-700 mb-2">Your answer:</p>
                   <p className="text-gray-800 leading-relaxed">{spokenText}</p>
+
+                  {currentCode && currentCode.trim().length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-green-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-sm font-medium text-green-700">
+                            ✓ Full code in {codeLanguage} will be sent to AI ({currentCode.split('\n').length} lines)
+                          </p>
+                        </div>
+                        {currentCode.length > 200 && (
+                          <button
+                            onClick={() => setShowFullCode(!showFullCode)}
+                            className="text-xs text-green-600 hover:text-green-800 font-medium"
+                          >
+                            {showFullCode ? 'Show Less' : 'Show All'}
+                          </button>
+                        )}
+                      </div>
+                      <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
+                        {showFullCode || currentCode.length <= 200 ? currentCode : `${currentCode.substring(0, 200)}...`}
+                      </pre>
+                      <p className="text-xs text-green-600 mt-2">
+                        💡 The complete code above will be analyzed by the AI interviewer
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

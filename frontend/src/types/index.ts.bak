@@ -81,7 +81,6 @@ export interface StartInterviewResponse {
   sessionId: string;
   firstQuestion: Question;
   audioUrl?: string;
-  greeting?: string;
 }
 
 export interface RespondRequest {

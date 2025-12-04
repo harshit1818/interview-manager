@@ -102,6 +102,7 @@ type StartInterviewRequest struct {
 type StartInterviewResponse struct {
 	SessionID     string   `json:"sessionId"`
 	FirstQuestion Question `json:"firstQuestion"`
+	Greeting      string   `json:"greeting,omitempty"`
 	AudioURL      string   `json:"audioUrl,omitempty"`
 }
 
