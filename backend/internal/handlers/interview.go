@@ -33,8 +33,18 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	// Create session
 	session := h.sessionService.CreateSession(req.CandidateName, req.Topic, req.Difficulty, req.Duration)
 
-	// Get first question from LLM service
-	firstQuestion, err := h.llmClient.GetFirstQuestion(session.Topic, session.Difficulty)
+	// Determine which session ID to use for JD lookup
+	// If JobDescriptionID is provided, use it (JD was pre-uploaded)
+	// Otherwise use the new session ID
+	jdSessionID := session.ID
+	if req.JobDescriptionID != "" {
+		jdSessionID = req.JobDescriptionID
+		// Copy JD context from pre-upload session to new session
+		h.llmClient.CopyJDContext(req.JobDescriptionID, session.ID)
+	}
+
+	// Get first question from LLM service (pass JD session ID for JD-based questions)
+	firstQuestion, err := h.llmClient.GetFirstQuestion(session.Topic, session.Difficulty, jdSessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate question"})
 		return
@@ -131,7 +141,7 @@ func (h *InterviewHandler) HandleResponse(c *gin.Context) {
 		// Advance context question counter
 		h.llmClient.AdvanceQuestion(session.ID)
 		
-		nextQ, err := h.llmClient.GetNextQuestion(session.Topic, session.Difficulty, session.CurrentQuestion+1)
+		nextQ, err := h.llmClient.GetNextQuestion(session.Topic, session.Difficulty, session.CurrentQuestion+1, session.ID)
 		if err == nil {
 			nextQuestion = &nextQ
 			session.Questions = append(session.Questions, nextQ)

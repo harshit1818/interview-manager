@@ -26,6 +26,11 @@ func NewLLMClient(baseURL string) *LLMClient {
 	}
 }
 
+// BaseURL returns the LLM service base URL
+func (l *LLMClient) BaseURL() string {
+	return l.baseURL
+}
+
 // LLMEvaluationResponse represents the response from LLM service
 type LLMEvaluationResponse struct {
 	Evaluation *models.Evaluation `json:"evaluation"`
@@ -34,11 +39,14 @@ type LLMEvaluationResponse struct {
 }
 
 // GetFirstQuestion gets the first question from LLM service
-func (l *LLMClient) GetFirstQuestion(topic, difficulty string) (models.Question, error) {
+func (l *LLMClient) GetFirstQuestion(topic, difficulty, sessionID string) (models.Question, error) {
 	payload := map[string]interface{}{
 		"topic":      topic,
 		"difficulty": difficulty,
 		"position":   0,
+	}
+	if sessionID != "" {
+		payload["sessionId"] = sessionID
 	}
 
 	var question models.Question
@@ -47,11 +55,14 @@ func (l *LLMClient) GetFirstQuestion(topic, difficulty string) (models.Question,
 }
 
 // GetNextQuestion gets the next question
-func (l *LLMClient) GetNextQuestion(topic, difficulty string, position int) (models.Question, error) {
+func (l *LLMClient) GetNextQuestion(topic, difficulty string, position int, sessionID string) (models.Question, error) {
 	payload := map[string]interface{}{
 		"topic":      topic,
 		"difficulty": difficulty,
 		"position":   position,
+	}
+	if sessionID != "" {
+		payload["sessionId"] = sessionID
 	}
 
 	var question models.Question
@@ -126,6 +137,29 @@ func (l *LLMClient) AdvanceQuestion(sessionID string) error {
 // ClearContext removes context for a completed session
 func (l *LLMClient) ClearContext(sessionID string) error {
 	return l.delete(fmt.Sprintf("/api/context/%s", sessionID))
+}
+
+// CopyJDContext copies JD context from one session to another
+func (l *LLMClient) CopyJDContext(fromSessionID, toSessionID string) error {
+	// Get JD context from source session
+	var jdResponse struct {
+		SessionID string `json:"sessionId"`
+		Context   string `json:"context"`
+	}
+	
+	err := l.get(fmt.Sprintf("/api/jd/%s", fromSessionID), &jdResponse)
+	if err != nil {
+		return err // No JD context to copy
+	}
+	
+	// Store it for the new session
+	payload := map[string]interface{}{
+		"text":      jdResponse.Context,
+		"sessionId": toSessionID,
+	}
+	
+	var response map[string]interface{}
+	return l.post("/api/jd/text", payload, &response)
 }
 
 // Helper method for GET requests

@@ -62,6 +62,24 @@ func main() {
 			admin.GET("/sessions", handler.ListSessions)
 			admin.GET("/report/:sessionId", handler.GetReport)
 		}
+
+		// Topics and Job Description routes (proxy to LLM service)
+		topics := api.Group("/topics")
+		{
+			handler := handlers.NewTopicsHandler(llmClient)
+			topics.GET("", handler.ListTopics)
+			topics.GET("/domains", handler.ListDomains)
+			topics.GET("/domain/:domain", handler.ListTopicsByDomain)
+		}
+
+		jd := api.Group("/jd")
+		{
+			handler := handlers.NewJDHandler(llmClient, sessionService)
+			jd.POST("/upload", handler.UploadJD)
+			jd.POST("/text", handler.ProcessJDText)
+			jd.GET("/:sessionId", handler.GetJDContext)
+			jd.DELETE("/:sessionId", handler.ClearJDContext)
+		}
 	}
 
 	// WebSocket for real-time updates
