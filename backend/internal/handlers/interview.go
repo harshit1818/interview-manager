@@ -38,33 +38,19 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	session.StartedAt = &now
 	session.Status = "in_progress"
 
-	// AI Introduction and greeting
-	aiGreeting := fmt.Sprintf("Hello %s! Welcome to your %s interview for a %s level position. I'm your AI interviewer today. This interview will last approximately %d minutes. Let's start by getting to know you better. Please introduce yourself and tell me a bit about your background and experience.",
-		req.CandidateName, req.Topic, req.Difficulty, req.Duration)
-
-	// Log AI's greeting
-	h.sessionService.AddConversationTurn(session.ID, models.ConversationTurn{
-		Timestamp: time.Now(),
-		Speaker:   "ai",
-		Text:      aiGreeting,
-		Type:      "greeting",
-	})
-
-	// Create introduction question
+	// Start directly with introduction question (greeting embedded in question)
 	introQuestion := models.Question{
-		ID:              "intro_001",
-		Stem:            "Please introduce yourself and tell me about your background, experience, and what interests you about this role.",
-		Difficulty:      "introduction",
-		FollowUps:       []string{"What motivated you to apply for this position?", "Tell me about a recent project you're proud of."},
-		EvaluationHints: []string{"Clear communication", "Relevant experience", "Enthusiasm"},
-		RedFlags:        []string{"Unclear communication", "Lack of preparation"},
-		Asked:           true,
-		AskedAt:         &now,
+		ID:         "intro_001",
+		Stem:       fmt.Sprintf("Hello %s! Please introduce yourself and tell me about your background and experience.", req.CandidateName),
+		Difficulty: "introduction",
+		FollowUps:  []string{"What interests you about this role?"},
+		EvaluationHints: []string{"Clear communication"},
+		RedFlags:   []string{},
+		Asked:      true,
+		AskedAt:    &now,
 	}
 
 	session.Questions = append(session.Questions, introQuestion)
-
-	// Save session
 	h.sessionService.UpdateSession(session)
 
 	// Log introduction question
@@ -78,7 +64,6 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	c.JSON(http.StatusOK, models.StartInterviewResponse{
 		SessionID:     session.ID,
 		FirstQuestion: introQuestion,
-		Greeting:      aiGreeting,
 	})
 }
 

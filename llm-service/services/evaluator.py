@@ -20,6 +20,9 @@ class Evaluator:
         # Check if answer contains code
         has_code = '```' in answer
 
+        # Check if this is an introduction question
+        is_introduction = question.get('difficulty') == 'introduction' or 'introduce yourself' in question.get('stem', '').lower()
+
         system_prompt = f"""You are an AI technical interviewer conducting a {question.get('difficulty')} level interview.
 
 ## Your Persona
@@ -28,6 +31,7 @@ class Evaluator:
 - Ask clarifying questions when answers are ambiguous
 - Never give away answers directly
 - Review both verbal explanations AND code implementations
+{"- For introduction questions: keep it brief, acknowledge, then move to technical questions" if is_introduction else ""}
 
 ## Current Question
 {question.get('stem')}
@@ -76,6 +80,8 @@ Response format:
 }}
 
 Decision rules:
+{"- For introduction: Acknowledge briefly and use nextAction=next_question to move to technical questions" if is_introduction else ""}
+{"- For technical questions:" if not is_introduction else ""}
 - If clarity < 3: Ask for clarification (follow_up)
 - If correctness < 3: Offer a hint (follow_up)
 - If code has bugs: Point them out gently and ask them to fix

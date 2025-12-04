@@ -28,27 +28,33 @@ export const needsCodeEditor = (questionText: string): boolean => {
     'design a class',
     'create a method',
     'write a solution',
+    'dsa problem',
+    'coding challenge',
+    'programming',
+    'array',
+    'linked list',
+    'tree',
+    'graph',
+    'hash',
   ];
 
-  // Introduction/discussion keywords (no code needed)
+  // Introduction/discussion keywords (no code needed) - must be very specific
   const discussionKeywords = [
     'introduce yourself',
-    'tell me about',
-    'explain your',
-    'describe your',
-    'walk me through',
+    'tell me about yourself',
+    'tell me about your background',
+    'tell me about your experience',
     'what is your experience',
     'why do you',
-    'how do you',
   ];
 
-  // Check for discussion keywords first (higher priority)
+  // Check for discussion keywords first (higher priority) - but only for personal questions
   const hasDiscussionKeyword = discussionKeywords.some(keyword =>
     lowerQuestion.includes(keyword)
   );
 
-  if (hasDiscussionKeyword) {
-    return false; // Don't show code editor for discussions
+  if (hasDiscussionKeyword && !lowerQuestion.includes('dsa') && !lowerQuestion.includes('problem')) {
+    return false; // Don't show code editor for personal discussions only
   }
 
   // Check for coding keywords
@@ -56,7 +62,14 @@ export const needsCodeEditor = (questionText: string): boolean => {
     lowerQuestion.includes(keyword)
   );
 
-  return hasCodingKeyword;
+  // Default to showing code editor for technical topics
+  const isTechnicalTopic = lowerQuestion.includes('dsa') ||
+                           lowerQuestion.includes('algorithm') ||
+                           lowerQuestion.includes('data structure') ||
+                           lowerQuestion.includes('coding') ||
+                           lowerQuestion.includes('programming');
+
+  return hasCodingKeyword || isTechnicalTopic;
 };
 
 export const getQuestionType = (questionText: string): 'introduction' | 'discussion' | 'coding' | 'conceptual' => {

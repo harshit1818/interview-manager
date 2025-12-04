@@ -75,12 +75,14 @@ Make the question practical and relevant to real-world scenarios."""
             }
         }
 
-        question = fallback_questions.get(topic, {}).get(difficulty, {
-            "stem": f"Explain your approach to solving a typical {topic} problem.",
-            "followUps": ["How would you optimize this?"],
-            "evaluationHints": ["Clear problem-solving approach"],
-            "redFlags": ["Lack of structured thinking"]
-        })
+        # Get fallback for topic/difficulty, or use easy question as default
+        question = fallback_questions.get(topic, {}).get(difficulty,
+                   fallback_questions.get(topic, {}).get("easy", {
+                       "stem": "Given an array of integers, write a function to find two numbers that add up to a specific target.",
+                       "followUps": ["What's the time complexity?"],
+                       "evaluationHints": ["Hash map approach"],
+                       "redFlags": ["Nested loops without optimization"]
+                   }))
 
         return {
             "id": str(uuid.uuid4()),
