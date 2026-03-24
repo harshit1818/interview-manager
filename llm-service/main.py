@@ -16,9 +16,9 @@ from services.jd_processor import JDProcessor, INTERVIEW_TOPICS, get_topic_list,
 # Load environment variables
 load_dotenv()
 
-# Warn if Anthropic key missing
-if not os.getenv("ANTHROPIC_API_KEY"):
-    logging.warning("ANTHROPIC_API_KEY not set. Set it in environment or llm-service/.env before running.")
+# Warn if Gemini key missing
+if not os.getenv("GEMINI_API_KEY"):
+    logging.warning("GEMINI_API_KEY not set. Set it in environment or llm-service/.env before running.")
 
 app = FastAPI(title="Interview LLM Service", version="1.0.0")
 
@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # Initialize services
-claude_client = ClaudeClient(api_key=os.getenv("ANTHROPIC_API_KEY"))
+claude_client = ClaudeClient(api_key=os.getenv("GEMINI_API_KEY"))
 question_generator = QuestionGenerator(claude_client)
 evaluator = Evaluator(claude_client)
 report_generator = ReportGenerator(claude_client)

@@ -1,34 +1,15 @@
-from anthropic import Anthropic
+import google.generativeai as genai
 from typing import List, Dict
-import asyncio
+import os
 
 
 class ClaudeClient:
-    """Client for interacting with Claude API"""
+    """Client for interacting with Gemini API (drop-in replacement for Claude)"""
 
-    def __init__(self, api_key: str):
-        self.client = Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-20250514"  # Correct model version
-
-    async def _call_messages_create(self, **kwargs):
-        """Run the blocking Anthropic call in a thread to avoid blocking event loop."""
-        return await asyncio.to_thread(self.client.messages.create, **kwargs)
-
-    def _extract_text(self, message) -> str:
-        """Robustly extract text from Anthropic response objects."""
-        try:
-            content = getattr(message, "content", None)
-            if content and isinstance(content, list) and len(content) > 0:
-                first = content[0]
-                if isinstance(first, dict):
-                    return first.get("text", "")
-                # object with attribute `text`
-                return getattr(first, "text", "")
-
-            # Fallback to string representation
-            return str(message)
-        except Exception:
-            return str(message)
+    def __init__(self, api_key: str = None):
+        api_key = api_key or os.getenv("GEMINI_API_KEY")
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
 
     async def generate_text(
         self,
@@ -37,16 +18,16 @@ class ClaudeClient:
         max_tokens: int = 1024,
         temperature: float = 1.0
     ) -> str:
-        """Generate text using Claude (non-blocking)."""
+        """Generate text using Gemini."""
         try:
-            message = await self._call_messages_create(
-                model=self.model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
+            response = await self.model.generate_content_async(
+                contents=f"{system_prompt}\n\n{user_message}",
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                ),
             )
-            return self._extract_text(message)
+            return response.text
         except Exception as e:
             print(f"Error generating text: {e}")
             raise
@@ -58,16 +39,27 @@ class ClaudeClient:
         max_tokens: int = 1024,
         temperature: float = 1.0
     ) -> str:
-        """Generate text with conversation history (non-blocking)."""
+        """Generate text with conversation history."""
         try:
-            message = await self._call_messages_create(
-                model=self.model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=messages,
+            # Convert messages to Gemini format
+            contents = []
+            for msg in messages:
+                role = "user" if msg["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [msg["content"]]})
+
+            # Prepend system prompt to first user message
+            if contents and system_prompt:
+                first_part = contents[0]["parts"][0]
+                contents[0]["parts"][0] = f"{system_prompt}\n\n{first_part}"
+
+            response = await self.model.generate_content_async(
+                contents=contents,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                ),
             )
-            return self._extract_text(message)
+            return response.text
         except Exception as e:
             print(f"Error generating with history: {e}")
             raise
