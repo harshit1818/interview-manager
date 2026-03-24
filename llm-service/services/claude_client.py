@@ -1,15 +1,14 @@
-import google.generativeai as genai
+from groq import AsyncGroq
 from typing import List, Dict
 import os
 
 
 class ClaudeClient:
-    """Client for interacting with Gemini API (drop-in replacement for Claude)"""
+    """Client for interacting with Groq API (drop-in replacement for Claude)"""
 
     def __init__(self, api_key: str = None):
-        api_key = api_key or os.getenv("GEMINI_API_KEY")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
+        self.client = AsyncGroq(api_key=api_key or os.getenv("GROQ_API_KEY"))
+        self.model = "llama-3.3-70b-versatile"
 
     async def generate_text(
         self,
@@ -18,16 +17,18 @@ class ClaudeClient:
         max_tokens: int = 1024,
         temperature: float = 1.0
     ) -> str:
-        """Generate text using Gemini."""
+        """Generate text using Groq."""
         try:
-            response = await self.model.generate_content_async(
-                contents=f"{system_prompt}\n\n{user_message}",
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=temperature,
-                ),
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
-            return response.text
+            return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating text: {e}")
             raise
@@ -41,25 +42,20 @@ class ClaudeClient:
     ) -> str:
         """Generate text with conversation history."""
         try:
-            # Convert messages to Gemini format
-            contents = []
+            groq_messages = [{"role": "system", "content": system_prompt}]
             for msg in messages:
-                role = "user" if msg["role"] == "user" else "model"
-                contents.append({"role": role, "parts": [msg["content"]]})
+                groq_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"],
+                })
 
-            # Prepend system prompt to first user message
-            if contents and system_prompt:
-                first_part = contents[0]["parts"][0]
-                contents[0]["parts"][0] = f"{system_prompt}\n\n{first_part}"
-
-            response = await self.model.generate_content_async(
-                contents=contents,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=temperature,
-                ),
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=groq_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
-            return response.text
+            return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating with history: {e}")
             raise
