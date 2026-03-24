@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"interview-manager/backend/internal/models"
 )
@@ -22,7 +23,7 @@ func NewLLMClient(baseURL string) *LLMClient {
 
 	return &LLMClient{
 		baseURL: baseURL,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 120 * time.Second},
 	}
 }
 

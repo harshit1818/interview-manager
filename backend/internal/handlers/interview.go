@@ -47,7 +47,7 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 	// Get first question from LLM service (pass JD session ID for JD-based questions)
 	firstQuestion, err := h.llmClient.GetFirstQuestion(session.Topic, session.Difficulty, jdSessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate question"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate question: " + err.Error()})
 		return
 	}
 
