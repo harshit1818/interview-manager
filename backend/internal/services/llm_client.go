@@ -209,7 +209,7 @@ func (l *LLMClient) delete(endpoint string) error {
 	return nil
 }
 
-// Helper method for POST requests
+// Helper method for POST requests with retry for cold starts
 func (l *LLMClient) post(endpoint string, payload interface{}, response interface{}) error {
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -217,24 +217,41 @@ func (l *LLMClient) post(endpoint string, payload interface{}, response interfac
 	}
 
 	url := l.baseURL + endpoint
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
+	maxRetries := 3
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := l.client.Do(req)
+		if err != nil {
+			if attempt < maxRetries-1 {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			return fmt.Errorf("failed to connect to LLM service: %w", err)
+		}
+		defer resp.Body.Close()
+
+		// Retry on 502/503 (Render cold start)
+		if (resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable) && attempt < maxRetries-1 {
+			resp.Body.Close()
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			var errBody map[string]interface{}
+			json.NewDecoder(resp.Body).Decode(&errBody)
+			return fmt.Errorf("LLM service error %s: %v", resp.Status, errBody)
+		}
+
+		return json.NewDecoder(resp.Body).Decode(response)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to connect to LLM service: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errBody map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&errBody)
-		return fmt.Errorf("LLM service error %s: %v", resp.Status, errBody)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(response)
+	return fmt.Errorf("LLM service unavailable after %d retries", maxRetries)
 }
