@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -30,6 +31,23 @@ func NewLLMClient(baseURL string) *LLMClient {
 // BaseURL returns the LLM service base URL
 func (l *LLMClient) BaseURL() string {
 	return l.baseURL
+}
+
+// WakeUp pings the health endpoint until the LLM service is ready
+func (l *LLMClient) WakeUp() error {
+	url := l.baseURL + "/health"
+	for attempt := 0; attempt < 10; attempt++ {
+		resp, err := l.client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		log.Printf("LLM service not ready (attempt %d/10), waiting...", attempt+1)
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("LLM service did not become ready after 50 seconds")
 }
 
 // LLMEvaluationResponse represents the response from LLM service

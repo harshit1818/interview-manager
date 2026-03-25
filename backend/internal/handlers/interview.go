@@ -44,6 +44,12 @@ func (h *InterviewHandler) StartInterview(c *gin.Context) {
 		h.llmClient.CopyJDContext(req.JobDescriptionID, session.ID)
 	}
 
+	// Wake up LLM service if it's cold (Render free tier)
+	if err := h.llmClient.WakeUp(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "LLM service is starting up, please try again in a moment"})
+		return
+	}
+
 	// Get first question from LLM service (pass JD session ID for JD-based questions)
 	firstQuestion, err := h.llmClient.GetFirstQuestion(session.Topic, session.Difficulty, jdSessionID)
 	if err != nil {
